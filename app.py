@@ -1,15 +1,188 @@
 from flask import Flask, redirect
 from glob import glob
 from flask import request
-
+import os
 
 app = Flask(__name__)
 
 @app.route('/')
 def hello_world():
     all_image_folders = sorted(glob("static/images/ms*"))
-
     return generate_html(all_image_folders)
+
+# lower_bucket = "/Users/amitvakula/Documents/data/henry7/PBR/subjects/"
+# upper_bucket = "/Users/amitvakula/Documents/data/henry11/PBR/subjects/"
+
+lower_bucket = "/data/henry7/PBR/subjects/"
+upper_bucket = "/data/henry11/PBR/subjects/"
+
+def extract_mseID(mseId):
+    if mseId[0:3] != "mse":
+        raise ValueError("The first three characters of the mseId was not mse. Proper syntax for mseId is of the form 'mse#' while the input was {0}".format(mseId))
+    if mseId[-1] == "B":
+        mseId = mseId[0: len(mseId) - 1]
+    if mseId[3:] == "":
+        raise ValueError("Although the first three characters were mse, an integer was not specified after that for mseId")
+    return int(mseId[3:])
+
+def find_data(mseId):
+    base_folders = []
+    contents7 = os.listdir(lower_bucket)
+    for folder_name in contents7:
+        try:
+            if mseId == extract_mseID(folder_name):
+                base_folders.append(os.path.join(lower_bucket, folder_name))
+        except ValueError:
+            pass
+
+    contents11 = os.listdir(upper_bucket)
+    for folder_name in contents11:
+        try:
+            if mseId == extract_mseID(folder_name):
+                base_folders.append(os.path.join(upper_bucket, folder_name))
+        except ValueError:
+            pass
+
+    return base_folders
+
+def pretty_hiearchy_string(base_path, indentation = ""):
+    to_rtn = base_path + "<br>"
+    return pretty_hiearchy_string_helper(to_rtn, base_path, "&emsp;", "&emsp;")
+
+def pretty_hiearchy_string_helper(rtn_str, base_path, indentation, indent_amount = "   "):
+    try:
+      for entry in os.listdir(base_path):
+          if os.path.isfile(os.path.join(base_path, entry)):
+              pass
+          else:
+              rtn_str += "{0}{1}".format(indentation, entry) + "<br>"
+              pretty_hiearchy_string_helper(rtn_str, os.path.join(base_path, entry), indentation + indent_amount, indent_amount)
+      return rtn_str
+    except FileNotFoundError:
+      return rtn_str
+
+@app.route('/search/<mseId>')
+def get_mse(mseId):
+    all_image_folders = sorted(glob("static/images/ms*"))
+
+    return generate_mse_html(all_image_folders, mseId, mseId + " Search Results")
+
+def generate_mse_html(all_image_folders, mseId,  title="All Images"):
+    from glob import glob
+    starter_template = """
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+    <title>AnatomicalPlotter</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/flexboxgrid/6.3.1/flexboxgrid.min.css" type="text/css" >
+
+</head>
+
+
+<body>
+
+<nav class="navbar sticky-top navbar-toggleable-md navbar-light bg-faded">
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo01" aria-controls="navbarTogglerDemo01" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarTogglerDemo01">
+    <a class="navbar-brand" href="#">PBRain Labeller</a>
+    <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+      <li class="nav-item active">
+        <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#">About</a>
+      </li>    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <input class="form-control mr-sm-2" type="text" placeholder="Search">
+      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
+    </form>
+  </div>
+</nav>
+
+<div class="" style="margin:20px;">
+
+  <div class="form-check form-check-inline">
+   <form id="myForm" class="form-group" action="/saveForm">
+<div class="jumbotron" style="margin-top:10px;">
+  <h1 class="display-3">{title}</h1>
+  <p class="lead">
+    {result}
+  </p>
+</div>
+
+<div class="row">
+     {body}
+</div>
+   </form>
+  </div>
+</div>
+
+</body>
+
+</html>"""
+
+   
+    body_template = """
+<div class="col-xs">
+    <div class="card mb-3">
+      <img class="card-img-top" src="/static/images/{pbr_name}/anatomical_image.png"  alt="Card image cap">
+      <div class="card-block">
+        <h4 class="card-title">{pbr_name}</h4>
+        <p class="card-text">
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input class="form-check-input" type="radio" name="{pbr_name}___type" id="inlineRadio1-{idx}" value="brain"> Brain
+          </label>
+        </div>
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input class="form-check-input" type="radio" name="{pbr_name}___type" id="inlineRadio2-{idx}" value="spine"> Spine
+          </label>
+        </div>
+
+  <div class="form-group">
+    <label for="exampleSelect1-{idx}">Choose Modality</label>
+    <select class="form-control" id="exampleSelect1i{idx}" name="{pbr_name}___modality">
+      <option>Ignore</option>
+      <option>T1</option>
+      <option>T2</option>
+      <option>FLAIR</option>
+      <option>Diffusion</option>
+    </select>
+  </div>
+
+       </p>
+      </div>
+    </div>
+
+</div>
+      """
+
+    all_body = ""
+    N = len(all_image_folders)
+    for idx, image_folder in enumerate(all_image_folders):
+        # split the image_folder string so you extract the PBR name
+        pbr_name = image_folder.split("/")[-1]
+        # split the pbr name so we get the mse id
+        mse = pbr_name.split("-")[1]
+        # Use the body template to fill in the pbr_name and mse info:
+        mse_body = body_template.format(mse=mse, pbr_name=pbr_name, idx=idx)
+        # add the mse_body to all_body
+        all_body += mse_body
+
+    # Now fill body section of the starter_template:
+    res = ""
+    for loc in find_data(extract_mseID(mseId)):
+      res += pretty_hiearchy_string(loc) + "\n"
+    my_html = starter_template.format(body=all_body, title=title, result=res)
+    return my_html
 
 def generate_html(all_image_folders, title="All Images"):
     from glob import glob
